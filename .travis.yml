@@ -6,12 +6,14 @@ jdk:
 script:
 - sbt test
 before_deploy:
-  - pip install --user release-manager==0.3.0
+- pip install --user release-manager==0.3.0
 deploy:
   skip_cleanup: true
   provider: script
-  script: ./.travis/deploy.sh $TRAVIS_TAG
+  script: "./.travis/deploy.sh $TRAVIS_TAG"
   on:
-    # Deploy iff some tag is specified
     tags: true
-
+env:
+  global:
+  - secure: Er/OBSZ5/Q3XQPDnVIq/Lqfv2ZDMhMv8sPSmwid5LnInerhEKP5fUR9dfzmZ5kWr6B5OJhNa+y0vORhrCGTvatKQhJe4IzCyYv8oPCAqu4BGyVYE9DmrD2NxB0hSk09pQiEOlTVGrA7udkDOlwIJCI8v/IfOhrRP6WvkehNW+2uE36JWc7OLWAdw6tXtuI6pMWGrENeI52MMwPQ3QwaAZh2eAhbVn4CA6dxTTcUX6RvAJ2QnB6ocfkt0vnlXBMug2d9WbTLX0TsaXvIVF25/SAL11DsZI+1ySg5YNPy7SEvQBgz+Jx6lzOq6QVz/LAIbCT5bDwkegLHlaikX6T5ppLw9QIMqFaL3acGIKXshXvVND9d0/uizncTUzehJFAzbznxpC37LgEMCnIQssHMfjceuJ+WqcF29jm+R12tD8v8Sd+Dh+ok4H5U7h5yqNUFVEfS+uGB9YE7wuHOlEG7YT9/LcUUYQcYb1k5yeqNlg8xKrBJh3BD9rhPUoqKFmvTeXVUyDkpO+c+svCdYQcOVZcRDKP2nQhwn012Z3xJVSEfb3NFw0a4rwabpalyaPjs/t9Dng3Ud8XZkPSR38vB0F13Pcb+0pTwWWgjo3EK+1gfcCt3v9GTwYSshr4WrnY1gLsGHzg1/IZa6joQeNF/1Xl9ZiXSD2r5xOOCq04XOOHY=
+  - secure: W/36dHJZajNGTOdHM71Cn+9cJMJ8V4VONrnNV0EMqUoBJTpG55LPLgyvRI72EwVSXpDUqcRpJUB1EASQA7pDwBhzj7frJC9NAcUHjO3ECFCm7oFbJ/o/57sp7xCuo27fTvSifQvjcrB59iWiy29Fpj1JM/vgEjL/jmcahMwEg6Krch+fh1x043wf0GGl0btw2xFGJUDlEuenMb91fopUy1sSg+NqI+nTlMDNPw4rrSK/HUbH+vykMkIhAfOpOpBaWg1m7Yf+0eCJfpdnruHEIZbFrC85GNs79TLVTfGTlv3EFXSSHeHRLLdqyWnRhgPZJjYb7Wzb3fxTlb7gHZZUOAiw6PnmpurdkxrHIm/yoexo7aGUUh5Oyla2e0oOtL57lzCYcdVBBGd5zC2BhIjZTdiF6u63M6grU1VENHuq5gqY3lWbs4XiFgoMRlcfFY3SxHjzCFxsFC4/tjw2xdAn9IFV0nn+e5MQRcMlxypplOHbHDx8j8hm2K0sqczjrcme/pgpp32lLEQaAeBBiCSz+BctBZDsMejSs4w/Imt2+LeknXT01JuIN23WiOfLrUC0cQ0c4eSRBTSWKuQbrRZ5T5gbpwYCCU5th697ChjeyhYgVEED5z0nNgxHpvdzknCMPPpRWTv70ACBBqW0oDoWqOPG442zUFiTzDjeMA/Hwpg=
