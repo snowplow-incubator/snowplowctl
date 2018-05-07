@@ -10,6 +10,7 @@ lazy val root = project.in(file("."))
   .settings(BuildSettings.buildSettings)
   .settings(BuildSettings.scalifySettings)
   .settings(BuildSettings.fpAddons)
+  .settings(BuildSettings.publishSettings)
   .settings(
     resolvers ++= Seq(
       "Sonatype OSS Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/"

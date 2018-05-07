@@ -15,9 +15,15 @@
 import sbt._
 import Keys._
 
+// sbt-bintray
+import bintray._
+import bintray.BintrayPlugin._
+import bintray.BintrayKeys._
+
 // sbt-assembly
 import sbtassembly._
 import sbtassembly.AssemblyKeys._
+import sbtassembly.AssemblyPlugin.defaultShellScript
 
 
 /**
@@ -68,12 +74,12 @@ object BuildSettings {
 
   // sbt-assembly settings
   lazy val assemblySettings = Seq(
-    assemblyJarName in assembly := { name.value + "-" + version.value + ".jar" },
-
+    assemblyJarName in assembly := { name.value },
     assemblyMergeStrategy in assembly := {
       case PathList("META-INF", _ @ _*) => MergeStrategy.discard
       case _ => MergeStrategy.first
-    }
+    },
+    assemblyOption in assembly ~= { _.copy(prependShellScript = Some(defaultShellScript)) }
   )
 
   lazy val fpAddons = Seq(
@@ -84,5 +90,29 @@ object BuildSettings {
 
   lazy val helpersSettings = Seq[Setting[_]](
     initialCommands := "import com.snowplowanalytics.snowplowctl._"
+  )
+
+  // Bintray publish settings
+  lazy val publishSettings = bintraySettings ++ Seq[Setting[_]](
+    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
+    bintrayOrganization := Some("snowplow"),
+    bintrayRepository := "snowplow-generic",
+    publishMavenStyle := false,
+
+    // Custom Bintray resolver used to publish package with custom Ivy patterns (custom path in Bintray)
+    // It requires ~/.bintray/credentials file and bintrayOrganization setting
+    publishTo in bintray := {
+      for {
+        bintrayOrg     <- bintrayOrganization.value
+        credentials    <- BintrayCredentials.read(bintrayCredentialsFile.value)
+        bintrayRepo     = BintrayRepo(credentials, Some(bintrayOrg), name.value)
+        connectedRepo   = bintrayRepo.client.repo(bintrayOrg, bintrayRepository.value)
+        bintrayPackage  = connectedRepo.get(name.value)
+        ivyResolver     = BintrayIvyResolver(
+          bintrayRepository.value,
+          bintrayPackage.version(version.value),
+          release = true)
+      } yield new RawRepository(ivyResolver, "Raw Repository")
+    }
   )
 }
