@@ -17,6 +17,8 @@ import cats.implicits._
 
 import com.monovore.decline._
 
+import com.snowplowanalytics.manifest.core.{ Agent, Application }
+
 object Config {
   /** Processing Manifest states that can be resolved using RESOLVED record */
   sealed trait ResolvableState
@@ -35,5 +37,18 @@ object Config {
       }
 
     def defaultMetavar = "STATE"
+  }
+
+  implicit val applicationArg: Argument[Application] = new Argument[Application] {
+    def read(string: String): ValidatedNel[String, Application] =
+      string.split(':').toList match {
+        case List(name, "*") =>
+          Application(Agent(name, "*"), None).validNel
+        case List(name, instance) =>
+          Application(Agent(name, "*"), Some(instance)).validNel
+        case _ => s"Application [$string] is not valid Application. Should conform $defaultMetavar format".invalidNel
+      }
+
+    def defaultMetavar = "application:id"
   }
 }

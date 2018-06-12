@@ -13,15 +13,23 @@
 
 package com.snowplowanalytics.snowplowctl
 
+import com.snowplowanalytics.snowplowctl.SnowplowCtlCommand.AwsConfig
 import org.specs2.Specification
 
 class SnowplowCtlCommandSpec extends Specification { def is = s2"""
   Parse manifest resolve subcommand $e1
+  Parse manifest resolve subcommand with AWS profile $e2
   """
 
   def e1 = {
     val args = "manifest --table-name manifest-test resolve s3://snowplow/ FAILED".split(" ")
-    val expected = SnowplowCtlCommand.ManifestCommand("manifest-test", SnowplowCtlCommand.Resolve("s3://snowplow/", Config.ResolvableState.Failed), None)
+    val expected = SnowplowCtlCommand.ManifestCommand("manifest-test", SnowplowCtlCommand.Resolve("s3://snowplow/", Config.ResolvableState.Failed), None, AwsConfig(None, None))
+    SnowplowCtlCommand.parse(args) must beRight(expected)
+  }
+
+  def e2 = {
+    val args = "manifest --table-name manifest-test --profile default resolve s3://snowplow/ FAILED".split(" ")
+    val expected = SnowplowCtlCommand.ManifestCommand("manifest-test", SnowplowCtlCommand.Resolve("s3://snowplow/", Config.ResolvableState.Failed), None, AwsConfig(Some("default"), None))
     SnowplowCtlCommand.parse(args) must beRight(expected)
   }
 }

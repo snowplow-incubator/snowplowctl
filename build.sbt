@@ -1,7 +1,7 @@
 lazy val root = project.in(file("."))
   .settings(
     name := "snowplowctl",
-    version := "0.1.0-rc1",
+    version := "0.1.0-rc2",
     organization := "com.snowplowanalytics",
     scalaVersion := "2.11.12",
     initialCommands := "import com.snowplowanalytics.snowplowctl._"
@@ -23,6 +23,8 @@ lazy val root = project.in(file("."))
       Dependencies.igluCoreCirce,
       Dependencies.circe,
       Dependencies.circeJavaTime,
+      Dependencies.fs2,
+      Dependencies.fs2Io,
 
       Dependencies.specs2,
       Dependencies.scalaCheck

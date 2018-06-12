@@ -31,4 +31,5 @@ package object snowplowctl {
 
   /** Primary production IO action */
   type ManifestIO[A] = ReaderT[BaseManifestF[IO, ?], ManifestClient, A]
+
 }

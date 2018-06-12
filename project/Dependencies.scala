@@ -18,10 +18,11 @@ object Dependencies {
     // Scala
     val decline            = "0.4.0"
     val catsEffect         = "0.10"
-    val processingManifest = "0.1.0-M4"
+    val processingManifest = "0.1.0-M5"
     val igluClient         = "0.5.0"
     val igluCore           = "0.2.0"
     val circe              = "0.9.3"
+    val fs2                = "0.10.5"
     val scalaz7            = "7.0.9"
     val json4sJackson      = "3.2.11"
     // Scala (test only)
@@ -37,6 +38,8 @@ object Dependencies {
   val igluCoreCirce      = "com.snowplowanalytics" %% "iglu-core-circe"              % V.igluCore
   val circe              = "io.circe"              %% "circe-core"                   % V.circe
   val circeJavaTime      = "io.circe"              %% "circe-java8"                  % V.circe
+  val fs2                = "co.fs2"                %% "fs2-core"                     % V.fs2
+  val fs2Io              = "co.fs2"                %% "fs2-io"                       % V.fs2
   val scalaz7            = "org.scalaz"            %% "scalaz-core"                  % V.scalaz7
   val json4sJackson      = "org.json4s"            %% "json4s-jackson"               % V.json4sJackson
   // Scala (test only)

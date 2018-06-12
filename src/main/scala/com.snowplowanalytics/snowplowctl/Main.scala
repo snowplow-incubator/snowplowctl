@@ -12,101 +12,54 @@
  */
 package com.snowplowanalytics.snowplowctl
 
+import cats.effect.IO
 import cats.implicits._
 
-import com.snowplowanalytics.snowplowctl.manifest.{ Commands, Utils }
+import SnowplowCtlCommand._
+import manifest.Utils
+import manifest.Commands._
 
 object Main {
-  def main(args: Array[String]): Unit = {
-    SnowplowCtlCommand.snowplowCtl.parse(args) match {
-      case Right(SnowplowCtlCommand.ManifestCommand(tableName, SnowplowCtlCommand.Dump, resolver)) =>
-        val records = for {
-          client <- Utils.getClient(tableName, resolver)
-          records <- Commands.dumpManifest.run(client).value
-        } yield records
-        records.unsafeRunSync() match {
-          case Right(jsons) =>
-            println(jsons.mkString("\n"))
-          case Left(error) =>
-            System.err.println(error.show)
-            System.exit(1)
-        }
-      case Right(SnowplowCtlCommand.ManifestCommand(tableName, SnowplowCtlCommand.Create, resolver)) =>
-        val result = for {
-          client <- Utils.getClient(tableName, resolver)
-          created <- Commands.createManifestTable.run(client).value
-        } yield created
-        result.unsafeRunSync() match {
-          case Right(_) =>
-            println(s"DynamoDB table [$tableName] successfully created!")
-          case Left(error) =>
-            System.err.println(error.show)
-            System.exit(1)
-        }
-      case Right(SnowplowCtlCommand.ManifestCommand(tableName, SnowplowCtlCommand.Resolve(itemId, resolvableState), resolver)) =>
-        val result = for {
-          client <- Utils.getClient(tableName, resolver)
-          status <- Commands.resolve(itemId, resolvableState).run(client).value
-        } yield status
-        result.unsafeRunSync() match {
-          case Right(_) =>
-            println(s"Item [$itemId] with [$resolvableState] has been resolved successfully")
-          case Left(error) =>
-            System.err.println(error.show)
-            System.exit(1)
-        }
-      case Right(SnowplowCtlCommand.ManifestCommand(tableName, SnowplowCtlCommand.SkipItem(itemId, app, version, instance), resolver)) =>
-        val result = for {
-          client <- Utils.getClient(tableName, resolver)
-          status <- Commands.skip(itemId, app, version, instance).run(client).value
-        } yield status
-        result.unsafeRunSync() match {
-          case Right(shortHand) =>
-            println(s"Item [$itemId] has been successfully skipped for [$shortHand]")
-          case Left(error) =>
-            System.err.println(error.show)
-            System.exit(1)
-        }
-      case Right(SnowplowCtlCommand.ManifestCommand(tableName, SnowplowCtlCommand.DeleteItem(itemId), resolver)) =>
-        val result = for {
-          client <- Utils.getClient(tableName, resolver)
-          status <- Commands.delete(itemId).run(client).value
-        } yield status
-        result.unsafeRunSync() match {
-          case Right(count) =>
-            println(s"Item [$itemId] with $count records was deleted successfully")
-          case Left(error) =>
-            System.err.println(error.show)
-            System.exit(1)
-        }
-      case Right(SnowplowCtlCommand.ManifestCommand(tableName, SnowplowCtlCommand.Import(path), resolver)) =>
-        val result = for {
-          client <- Utils.getClient(tableName, resolver)
-          status <- Commands.importManifest(path).run(client).value
-        } yield status
-        result.unsafeRunSync() match {
-          case Right(count) =>
-            println(s"$count items were imported from $path")
-          case Left(error) =>
-            System.err.println(error.show)
-            System.exit(1)
-        }
-      case Right(SnowplowCtlCommand.ManifestCommand(tableName, SnowplowCtlCommand.GetItem(itemId, json), resolver)) =>
-        val result = for {
-          client <- Utils.getClient(tableName, resolver)
-          message <- Commands.getItem(itemId, json).run(client).value
-        } yield message
-        result.unsafeRunSync() match {
-          case Right(message) =>
-            println(message)
-          case Left(error) =>
-            System.err.println(error.show)
-            System.exit(1)
-        }
 
-      case Right(SnowplowCtlCommand.ShowVersion) => println(generated.ProjectMetadata.version)
-      case Right(command) => println(command)
+  def main(args: Array[String]): Unit = {
+    SnowplowCtlCommand.parse(args) match {
+      case Right(m @ ManifestCommand(_, Dump, _, _)) =>
+        execute(m.table, m.resolver, m.awsConfig)(dumpManifest)
+      case Right(m @ ManifestCommand(_, Create, _, _)) =>
+        execute(m.table, m.resolver, m.awsConfig)(createManifestTable)
+      case Right(m @ ManifestCommand(_, Resolve(itemId, resolvableState), _, _)) =>
+        execute(m.table, m.resolver, m.awsConfig)(resolve(itemId, resolvableState))
+      case Right(m @ ManifestCommand(_, SkipItem(itemId, app, version, instance), _, _)) =>
+        execute(m.table, m.resolver, m.awsConfig)(skip(itemId, app, version, instance))
+      case Right(m @ ManifestCommand(_, DeleteItem(itemId), _, _)) =>
+        execute(m.table, m.resolver, m.awsConfig)(delete(itemId))
+      case Right(m @ ManifestCommand(_, Import(path), _, _)) =>
+        execute(m.table, m.resolver, m.awsConfig)(importManifest(path))
+      case Right(m @ ManifestCommand(_, GetItem(itemId, json), _, _)) =>
+        execute(m.table, m.resolver, m.awsConfig)(getItem(itemId, json))
+      case Right(m @ ManifestCommand(_, Query(processedBy, requestedBy), _, _)) =>
+        println(m.toString).unsafeRunSync()
+        execute(m.table, m.resolver, m.awsConfig)(query(processedBy, requestedBy))
+      case Right(ShowVersion) =>
+        execute(println(generated.ProjectMetadata.version))
       case Left(help) => System.err.println(help)
     }
   }
+
+  private[this] def execute(tableName: String, resolver: Option[String], awsConfig: AwsConfig)(io: ManifestIO[Unit]): Unit = {
+    val result = for {
+      client <- Utils.getClient(tableName, resolver, awsConfig)
+      result <- io.run(client).value
+    } yield result
+    result.unsafeRunSync() match {
+      case Right(_) => ()
+      case Left(error) =>
+        System.err.println(error.show)
+        System.exit(1)
+    }
+  }
+
+  private[this] def execute(io: IO[Unit]): Unit =
+    io.unsafeRunSync()
+
 }

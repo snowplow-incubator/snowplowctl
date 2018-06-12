@@ -22,24 +22,34 @@ import io.circe.parser.parse
 import com.snowplowanalytics.iglu.client.Resolver
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
 
-import com.snowplowanalytics.manifest.core.{Record, Application, Item, State, StateCheck, ManifestError}
+import com.snowplowanalytics.manifest.core.{Application, Item, ManifestError, Record, State, StateCheck}
 import com.snowplowanalytics.manifest.core.Common.DefaultResolver
-import com.snowplowanalytics.manifest.dynamodb.{Common => _, _}
+import com.snowplowanalytics.manifest.dynamodb.DynamoDbManifest
+
+import com.snowplowanalytics.snowplowctl.SnowplowCtlCommand.AwsConfig
 
 
 object Utils {
 
   /** Create Processing manifest client, with custom resolver config (or with embedded schemas only) */
-  def getClient(tableName: String, resolverConfig: Option[String]): IO[ManifestClient] =
+  def getClient(tableName: String,
+                resolverConfig: Option[String],
+                awsConfig: AwsConfig): IO[ManifestClient] = {
+    val standard = AmazonDynamoDBClientBuilder.standard()
+    val builder = awsConfig.awsRegion.fold(standard)(standard.withRegion)
+    val client = awsConfig.awsProfile.fold(builder)(p => builder.withCredentials(new ProfileCredentialsProvider(p))).build()
+
     for {
-      dynamoClient <- IO(AmazonDynamoDBClientBuilder.defaultClient())
+      dynamoClient <- IO(client)
       resolver <- resolverConfig match {
         case Some(path) => Common.getResolver(path)
         case None => IO.pure(DefaultResolver)
       }
       manifestClient = DynamoDbManifest[BaseManifestF[IO, ?]](dynamoClient, tableName, resolver)
     } yield manifestClient
+  }
 
   /** Get human-readable representation of Manifest Item */
   def showItem(item: Item): String = {

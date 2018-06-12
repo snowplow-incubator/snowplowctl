@@ -14,13 +14,17 @@ package com.snowplowanalytics.snowplowctl
 package manifest
 
 import cats.data.{ReaderT, EitherT, NonEmptyList}
-import cats.effect._
 import cats.implicits._
+import cats.effect._
+import cats.effect.implicits._
 
 import io.circe.syntax._
 
+import fs2.io.stdout
+import fs2.text.utf8Encode
+
+import com.snowplowanalytics.manifest.ItemId
 import com.snowplowanalytics.manifest.core._
-import com.snowplowanalytics.manifest.core.ProcessingManifest.ItemId
 import com.snowplowanalytics.manifest.dynamodb.DynamoDbManifest
 
 import com.snowplowanalytics.snowplowctl.Common.readFile
@@ -30,17 +34,31 @@ import com.snowplowanalytics.snowplowctl.manifest.Utils._
 /** Functions responsible for subcommand execution */
 object Commands {
 
+  private val separator = Either.catchNonFatal(System.getProperty("line.separator")).fold(_ => "\n", c => c)
+
+  def println(str: String): IO[Unit] =
+    IO { System.out.println(str) }
+
   val SnowplowctlAuthor: Agent =
     Agent(generated.ProjectMetadata.name, generated.ProjectMetadata.version)
 
-  def dumpManifest: ManifestIO[List[String]] =
+  def dumpManifest: ManifestIO[Unit] =
     ReaderT { (manifest: ManifestClient) =>
-      for { records <- manifest.list } yield records.map(_.asJson.noSpaces)
+      manifest.stream
+        .map(_.asJson.noSpaces)
+        .intersperse(separator)
+        .through(utf8Encode)
+        .to(stdout)
+        .compile
+        .drain
     }
 
   def createManifestTable: ManifestIO[Unit] =
     ReaderT { (manifest: ManifestClient) =>
-      DynamoDbManifest.create[BaseManifestF[IO, ?]](manifest.client, manifest.primaryTable)
+      for {
+        _ <- DynamoDbManifest.create[BaseManifestF[IO, ?]](manifest.client, manifest.primaryTable)
+        _ <- println(s"DynamoDB table [${manifest.primaryTable}] successfully created!").liftIO[BaseManifestF[IO, ?]]
+      } yield ()
     }
 
   def resolve(itemId: String, resolvableState: ResolvableState): ManifestIO[Unit] =
@@ -66,17 +84,21 @@ object Commands {
               case state => EitherT.leftT[IO, Unit](invalidRequest(s"Item [$itemId] with state [${state.show}] cannot be resolved. Contact manifest administrator"))
             }
         }
+        _ <- println(s"Item [$itemId] with [$resolvableState] has been resolved successfully").liftIO[BaseManifestF[IO, ?]]
       } yield ()
     }
 
-  def skip(itemId: ItemId, name: String, version: Option[String], instanceId: Option[String]): ManifestIO[String] =
+  def skip(itemId: ItemId, name: String, version: Option[String], instanceId: Option[String]): ManifestIO[Unit] =
     ReaderT { (manifest: ManifestClient) =>
       val application = Application(Agent(name, version.getOrElse("*")), instanceId)
       val shortHand = s"${application.name}:${application.version}:${application.instanceId.getOrElse("*")}"
-      for { _ <- manifest.put(itemId, application, none, State.Skipped, SnowplowctlAuthor.some, None) } yield shortHand
+      for {
+        _ <- manifest.put(itemId, application, none, State.Skipped, SnowplowctlAuthor.some, None)
+        _ <- println(s"Item [$itemId] has been successfully skipped for [$shortHand]").liftIO[BaseManifestF[IO, ?]]
+      } yield ()
     }
 
-  def delete(itemId: ItemId): ManifestIO[Int] =
+  def delete(itemId: ItemId): ManifestIO[Unit] =
     ReaderT { (manifest: ManifestClient) =>
       for {
         item <- manifest.getItemRecords(itemId)
@@ -86,10 +108,11 @@ object Commands {
           case None =>
            EitherT.leftT[IO, Int](invalidRequest(s"Item [$itemId] does not exist"))
         }
-      } yield count
+        _ <- println(s"Item [$itemId] with $count records was deleted successfully").liftIO[BaseManifestF[IO, ?]]
+      } yield ()
     }
 
-  def importManifest(filePath: String): ManifestIO[Int] =
+  def importManifest(filePath: String): ManifestIO[Unit] =
     ReaderT { (manifest: ManifestClient) =>
       val items = for {
         content <- EitherT.right[String](readFile(filePath))
@@ -100,12 +123,13 @@ object Commands {
       for {
         list  <- items.leftMap(ManifestError.parseError)
         count <- list.traverse(putItem(manifest)).map(_.length)
-      } yield count
+        _ <- println(s"$count items were imported from $filePath").liftIO[BaseManifestF[IO, ?]]
+      } yield ()
     }
 
-  def getItem(itemId: ItemId, json: Boolean): ManifestIO[String] =
+  def getItem(itemId: ItemId, json: Boolean): ManifestIO[Unit] =
     ReaderT { (manifest: ManifestClient) =>
-      if (!json) { for {
+      val item = if (!json) { for {
         item <- manifest.getItem(itemId)
         message <- item match {
           case Some(i) => EitherT.pure[IO, ManifestError](Utils.showItem(i))
@@ -118,6 +142,17 @@ object Commands {
           case recs => EitherT.pure[IO, ManifestError](recs.map(_.asJson.noSpaces).mkString("\n"))
         }
       } yield message }
+
+      item.flatMap(println(_).liftIO[BaseManifestF[IO, ?]])
     }
 
+  def query(processedBy: Option[Application], requestedBy: Option[Application]): ManifestIO[Unit] =
+    ReaderT { (manifest: ManifestClient) =>
+      manifest.query(processedBy, requestedBy)
+        .intersperse(separator)
+        .through(utf8Encode)
+        .to(stdout)
+        .compile
+        .drain
+    }
 }
